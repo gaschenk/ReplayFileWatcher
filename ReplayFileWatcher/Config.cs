@@ -13,7 +13,7 @@ namespace ReplayFileWatcher
         {
             var date = DateTime.Now;
             var fileName = NewFileName;
-            fileName = fileName.Replace("<map>", replay.MapPath.Split(@"\\").Last().Split("_").Last());
+            fileName = fileName.Replace("<map>", replay.MapPath.Split(@"\\").Last().Split("_").Last().Split(".").First());
             //List<String> playerNames = new List<string>();
             var hostPlayerName = "";
             var playerNameList = "";

@@ -33,34 +33,30 @@ namespace ReplayFileWatcher
         {
             try
             {
-                using (var watcher = new FileSystemWatcher())
+                using var replayWatcher = new FileSystemWatcher();
+                var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) +
+                           @"\BattleForge\replays";
+                replayWatcher.Path = path;
+                replayWatcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime;
+                replayWatcher.Filter = "autosave.pmv";
+                replayWatcher.Changed += WatcherOnChanged;
+                replayWatcher.EnableRaisingEvents = true;
+
+                _logger.LogInformation($"{path} is now being watched");
+
+
+                using var configWatcher = new FileSystemWatcher();
+                configWatcher.Path = AppContext.BaseDirectory;
+                configWatcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName;
+                configWatcher.Filter = "config.json";
+                configWatcher.Changed += (_, _) =>
                 {
-                    var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) +
-                               @"\BattleForge\replays";
-                    watcher.Path = path;
-                    watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName;
-                    watcher.Filter = "autosave.pmv";
-                    watcher.Changed += WatcherOnChanged;
-                    watcher.EnableRaisingEvents = true;
+                    _configBuilder.Reload();
+                    _config = _configBuilder.Get<Config>();
+                };
+                configWatcher.EnableRaisingEvents = true;
 
-                    _logger.LogInformation($"{path} is now being watched");
-                }
-
-
-                using (var watcher = new FileSystemWatcher())
-                {
-                    watcher.Path = AppContext.BaseDirectory;
-                    watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName;
-                    watcher.Filter = "config.json";
-                    watcher.Changed += (_, _) =>
-                    {
-                        _configBuilder.Reload();
-                        _config = _configBuilder.Get<Config>();
-                    };
-                    watcher.EnableRaisingEvents = true;
-
-                    _logger.LogInformation("Config file is now being watched");
-                }
+                _logger.LogInformation("Config file is now being watched");
 
                 while (!stoppingToken.IsCancellationRequested) await Task.Delay(1000, stoppingToken);
             }
@@ -80,7 +76,7 @@ namespace ReplayFileWatcher
                 File.Move(e.FullPath, e.FullPath.Replace("autosave", newFileName));
             else File.Move(e.FullPath, _config.MoveToThisFolder + @$"\{newFileName}.pmv");
 
-            _logger.LogInformation($"File: {e.FullPath} changed to {newFileName}");
+            _logger.LogInformation($"File: {e.FullPath} changed to {newFileName}.pmv");
         }
     }
 }
