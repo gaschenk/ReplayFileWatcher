@@ -20,6 +20,8 @@ namespace ReplayFileWatcher
         {
             _logger = logger;
             _reader = new ReplayReader();
+            if (!File.Exists("config.json"))
+                File.WriteAllText("config.json", "{ \"NewFileName\":\"<date> <map>\",\"MoveToThisFolder\":\"\"}");
             _configBuilder = new ConfigurationBuilder().AddJsonFile("config.json").Build();
             _config = _configBuilder.Get<Config>();
         }
