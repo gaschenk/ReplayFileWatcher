@@ -1,12 +1,11 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SkylordsRebornAPI.Replay;
-using SkylordsRebornAPI.Replay.Data;
 
 namespace ReplayFileWatcher
 {
@@ -14,30 +13,49 @@ namespace ReplayFileWatcher
     {
         private readonly ILogger<Worker> _logger;
         private readonly ReplayReader _reader;
-        private readonly Config _config;
+        private Config _config;
+        private IConfigurationRoot _configBuilder;
 
         public Worker(ILogger<Worker> logger)
         {
             _logger = logger;
             _reader = new();
-            _config = new Config();
+            _configBuilder = new ConfigurationBuilder().AddJsonFile("config.json").Build();
+            _config = _configBuilder.Get<Config>();
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             try
             {
-                var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) +
-                           @"\BattleForge\replays";
                 using (FileSystemWatcher watcher = new FileSystemWatcher())
                 {
+                    var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) +
+                               @"\BattleForge\replays";
                     watcher.Path = path;
                     watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName;
                     watcher.Filter = "autosave.pmv";
                     watcher.Changed += WatcherOnChanged;
                     watcher.EnableRaisingEvents = true;
+                    
+                    _logger.LogInformation($"{path} is now being watched");
                 }
-                _logger.LogInformation($"{path} is now being watched");
+                
+                
+                using (FileSystemWatcher watcher = new FileSystemWatcher())
+                {
+                    watcher.Path = AppContext.BaseDirectory;
+                    watcher.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName;
+                    watcher.Filter = "config.json";
+                    watcher.Changed += (_, _) =>
+                    {
+                        _configBuilder.Reload();
+                        _config = _configBuilder.Get<Config>();
+                    };
+                    watcher.EnableRaisingEvents = true;
+                    
+                    _logger.LogInformation($"Config file is now being watched");
+                }
                 
                 while (!stoppingToken.IsCancellationRequested)
                 {
@@ -61,37 +79,6 @@ namespace ReplayFileWatcher
             else File.Move(e.FullPath, _config.MoveToThisFolder + @$"\{newFileName}.pmv");
 
             _logger.LogInformation($"File: {e.FullPath} changed to {newFileName}");
-        }
-    }
-
-    public struct Config
-    {
-        public String MoveToThisFolder { get; set; }
-        public String NewFileName { get; set; }
-
-        public readonly string GetActualFileName(Replay replay)
-        {
-            var date = DateTime.Now;
-            var fileName = NewFileName;
-            fileName = fileName.Replace("<map>", replay.MapPath.Split(@"\\").Last().Split("_").Last());
-            //List<String> playerNames = new List<string>();
-            string hostPlayerName = "";
-            string playerNameList = "";
-            foreach (var team in replay.Teams)
-            {
-                foreach (var player in team.Players)
-                {
-                    if (player.PlayerId == replay.HostPlayerId)
-                        hostPlayerName = player.Name;
-                    //playerNames.Add(player.Name);
-                    playerNameList += player.Name + "_";
-                }
-            }
-
-            fileName = fileName.Replace("<PlayerNames>", playerNameList);
-            fileName = fileName.Replace("<hostPlayer>", hostPlayerName);
-            fileName = fileName.Replace("<date>", date.Day + "-" + date.Month + "-" + date.Year);
-            return fileName;
         }
     }
 }
